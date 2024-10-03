@@ -1,0 +1,106 @@
+pipeline {
+    agent any
+	
+	tools {
+		maven 'maven'
+		}
+    
+    stages{
+        stage('Code-Compile'){
+            steps{
+                echo "Code Compile Started"
+				git 'https://github.com/vgvivekgupt/ABC_Technologies.git'
+				sh '/opt/maven/bin/mvn compile'
+				echo "Code Compile Done"
+				
+            }
+        }
+        stage('Code-Review'){           
+            steps{
+				echo "Code Review started"
+				git 'https://github.com/vgvivekgupt/ABC_Technologies.git'
+				sh '/opt/maven/bin/mvn -P metrics pmd:pmd'
+				echo "Code Review Done"
+				}
+		post {
+			success {
+				recordIssues sourceCodeRetention: 'LAST_BUILD', tools: [pmdParser(pattern: '**/pmd.xml')]
+			}
+				}
+			}        
+    stage('Code-Test'){
+        steps{
+            echo "Code Testing Started"
+			git 'https://github.com/vgvivekgupt/ABC_Technologies.git'
+			sh '/opt/maven/bin/mvn test'
+			echo "Code Testing Done"
+        }
+		post {
+			success {
+				junit stdioRetention: '', testResults: 'target/surefire-reports/*.xml'
+				}
+}
+    }
+    stage('Code-Coverage'){
+        steps{
+            echo "Code Coverage started"
+			git 'https://github.com/vgvivekgupt/ABC_Technologies.git'
+			sh '/opt/maven/bin/mvn verify'
+			echo "Code Coverage Done"
+			
+        }
+		post {
+			success {
+				jacoco maximumBranchCoverage: '2'
+				}
+			}
+	}
+    stage('Code-Build'){
+        steps{
+            echo "Code Build started"
+			git 'https://github.com/vgvivekgupt/ABC_Technologies.git'
+			sh '/opt/maven/bin/mvn package'
+			echo "Code Build Done"
+        }
+		post {
+			success {
+				archiveArtifacts artifacts: 'target/*.war', followSymlinks: false
+				}
+    }
+	}
+	
+	stage('Build Docker Image') {
+        steps {
+            sh '''#!/bin/bash
+                echo "Building Docker image with build number:$BUILD_NUMBER"
+				sudo cp /var/lib/jenkins/workspace/ABC_Technologies/target/*.war /docker/
+				sudo cd /docker/
+                sudo docker build -t abctechnologies:$BUILD_NUMBER -f /docker/Dockerfile .
+				sudo docker tag abctechnologies:$BUILD_NUMBER vgvivekgupt/abctechnologies:latest
+			'''
+            }
+        }
+        stage('Run Docker Container') {
+            steps {
+            sh '''#!/bin/bash
+                echo "Running Docker container"
+                sudo docker run -d -p 8082:8080 --name abctechnologies vgvivekgupt/abctechnologies:latest
+            '''
+            }
+        }
+        stage('Push to Docker Hub') {
+            steps {
+            withDockerRegistry(credentialsId: 'docker', url: ''){
+            sh '''#!/bin/bash
+                sudo docker push vgvivekgupt/abctechnologies:latest
+            '''
+            }
+            }
+        }
+	}
+    post{
+     always{
+        echo "notifier"
+        }
+    }	
+}

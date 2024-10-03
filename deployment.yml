@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abctechnologies
+spec:
+  replicas: 3  
+  selector:
+    matchLabels:
+      app: abctechnologies
+  template:
+    metadata:
+      labels:
+        app: abctechnologies
+    spec:
+      containers:
+        - name: app-abctechnologies
+          image: vgvivekgupt/abctechnologies:latest
+          ports:
+            - containerPort: 8080
+      imagePullSecrets:
+        - name: dockerhub-secret
+
